@@ -496,7 +496,7 @@ function renderGroups(){
 
     const dateRow = document.createElement('div');
     dateRow.className = 'group-date';
-    dateRow.innerHTML = 'Tanggal pertandingan: ';
+    dateRow.innerHTML = 'Tanggal : ';
     const dateInp = document.createElement('input');
     dateInp.type = 'date';
     dateInp.value = group.matchDate || '';
@@ -512,7 +512,7 @@ function renderGroups(){
     if(group.matchDate){
       const dateRow = document.createElement('div');
       dateRow.className = 'group-date';
-      dateRow.textContent = 'Tanggal pertandingan: ' + formatTanggal(group.matchDate);
+      dateRow.textContent = 'Tanggal : ' + formatTanggal(group.matchDate);
       left.appendChild(dateRow);
     }
   }
