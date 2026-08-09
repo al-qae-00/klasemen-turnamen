@@ -306,6 +306,7 @@
 const STORAGE_KEY = 'klasemen-data';
 const ADMIN_PIN = 'panitia2026';
 let isAdmin = false;
+let adminName = '';
 let data = null;
 let activeGroupId = null;
 let saveTimer = null;
@@ -331,6 +332,7 @@ function defaultData(){
   return {
     title: 'Klasemen Turnamen',
     updatedAt: Date.now(),
+    log: [],
     groups: [
       {
         id: uid(), name: 'Grup A', matchDate: '',
@@ -368,8 +370,15 @@ async function loadData(){
   }catch(e){
     data = defaultData();
   }
+  if(!data.log) data.log = [];
   if(!activeGroupId && data.groups.length) activeGroupId = data.groups[0].id;
   render();
+}
+
+function logAction(action){
+  if(!data.log) data.log = [];
+  data.log.unshift({ time: Date.now(), name: adminName || '(tanpa nama)', action });
+  if(data.log.length > 300) data.log.length = 300;
 }
 
 async function persist(showToast){
@@ -441,6 +450,12 @@ function renderAdminBar(){
   const bar = document.getElementById('adminBar');
   bar.innerHTML = '';
   if(isAdmin){
+    const logBtn = document.createElement('button');
+    logBtn.className = 'btn btn-ghost';
+    logBtn.textContent = 'Log Aktivitas';
+    logBtn.onclick = openLogModal;
+    bar.appendChild(logBtn);
+
     const badge = document.createElement('button');
     badge.className = 'btn btn-red';
     badge.textContent = 'Keluar Mode Admin';
@@ -474,6 +489,7 @@ function renderTabs(){
       const g = { id: uid(), name: 'Grup ' + String.fromCharCode(65 + data.groups.length), matchDate: '', teams: [] };
       data.groups.push(g);
       activeGroupId = g.id;
+      logAction('Menambah grup baru "' + g.name + '"');
       scheduleSave();
       render();
     };
@@ -505,6 +521,7 @@ function renderGroups(){
     inp.className = 'group-name-edit';
     inp.value = group.name;
     inp.oninput = ()=>{ group.name = inp.value; scheduleSave(); renderTabs(); };
+    inp.addEventListener('blur', ()=>{ logAction('Mengubah nama grup menjadi "' + group.name + '"'); scheduleSave(); });
     left.appendChild(inp);
 
     const dateRow = document.createElement('div');
@@ -515,6 +532,7 @@ function renderGroups(){
     dateInp.type = 'date';
     dateInp.value = group.matchDate || '';
     dateInp.oninput = ()=>{ group.matchDate = dateInp.value; scheduleSave(); };
+    dateInp.addEventListener('change', ()=>{ logAction('Mengubah tanggal grup "' + group.name + '" menjadi ' + (group.matchDate || '(kosong)')); scheduleSave(); });
     dateRow.appendChild(label);
     dateRow.appendChild(dateInp);
     left.appendChild(dateRow);
@@ -544,6 +562,7 @@ function renderGroups(){
     delGroup.textContent = 'Hapus Grup';
     delGroup.onclick = ()=>{
       if(confirm('Hapus grup "'+group.name+'" beserta semua tim di dalamnya?')){
+        logAction('Menghapus grup "' + group.name + '"');
         data.groups = data.groups.filter(g=>g.id!==group.id);
         activeGroupId = data.groups.length ? data.groups[0].id : null;
         scheduleSave();
@@ -604,25 +623,47 @@ function renderGroups(){
     card.appendChild(table);
 
     // wire inputs
+    const statLabels = { main:'Main', menang:'Menang', seri:'Seri', kalah:'Kalah', gm:'GM', gk:'GK' };
+
     if(isAdmin){
       table.querySelectorAll('input.stat').forEach(inp=>{
+        let beforeVal = inp.value;
+        inp.addEventListener('focus', ()=>{ beforeVal = inp.value; });
         inp.addEventListener('input', ()=>{
           const team = group.teams.find(t=>t.id===inp.dataset.id);
           team[inp.dataset.field] = Math.max(0, parseInt(inp.value||'0',10));
           scheduleSave();
           // live-update poin/sg without full re-render focus loss: simple full render on blur
         });
-        inp.addEventListener('blur', render);
+        inp.addEventListener('blur', ()=>{
+          const team = group.teams.find(t=>t.id===inp.dataset.id);
+          if(team && String(beforeVal) !== String(team[inp.dataset.field])){
+            logAction('Mengubah statistik "' + (statLabels[inp.dataset.field]||inp.dataset.field) + '" tim "' + team.name + '" dari ' + beforeVal + ' ke ' + team[inp.dataset.field]);
+            scheduleSave();
+          }
+          render();
+        });
       });
       table.querySelectorAll('input.team-name-input').forEach(inp=>{
+        let beforeVal = inp.value;
+        inp.addEventListener('focus', ()=>{ beforeVal = inp.value; });
         inp.addEventListener('input', ()=>{
           const team = group.teams.find(t=>t.id===inp.dataset.id);
           team.name = inp.value;
           scheduleSave();
         });
+        inp.addEventListener('blur', ()=>{
+          const team = group.teams.find(t=>t.id===inp.dataset.id);
+          if(team && beforeVal !== team.name){
+            logAction('Mengubah nama tim dari "' + beforeVal + '" menjadi "' + team.name + '"');
+            scheduleSave();
+          }
+        });
       });
       table.querySelectorAll('[data-remove]').forEach(el=>{
         el.addEventListener('click', ()=>{
+          const team = group.teams.find(t=>t.id===el.dataset.remove);
+          if(team) logAction('Menghapus tim "' + team.name + '" dari grup "' + group.name + '"');
           group.teams = group.teams.filter(t=>t.id!==el.dataset.remove);
           scheduleSave();
           render();
@@ -637,6 +678,7 @@ function renderGroups(){
     addBtn.textContent = '+ Tambah Tim';
     addBtn.onclick = ()=>{
       group.teams.push({ id: uid(), name: 'Tim Baru', main:0, menang:0, seri:0, kalah:0, gm:0, gk:0 });
+      logAction('Menambah tim baru di grup "' + group.name + '"');
       scheduleSave();
       render();
     };
@@ -667,6 +709,8 @@ document.getElementById('titleEdit').addEventListener('input', (ev)=>{
 document.getElementById('titleEdit').addEventListener('blur', ()=>{
   document.getElementById('titleEdit').style.display='none';
   document.getElementById('titleDisplay').style.display='block';
+  logAction('Mengubah judul turnamen menjadi "' + data.title + '"');
+  scheduleSave();
 });
 
 // ---------- pin modal ----------
@@ -676,8 +720,9 @@ function openPinModal(){
     <div class="modal-bg" id="modalBg">
       <div class="modal">
         <h3>Mode Admin</h3>
-        <p>Masukkan PIN panitia untuk mengedit klasemen.</p>
-        <input id="pinInput" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+        <p>Masukkan nama dan PIN panitia untuk mengedit klasemen. Nama ini akan tercatat di log aktivitas.</p>
+        <input id="nameInput" type="text" placeholder="Nama kamu" autocomplete="off" style="letter-spacing:normal; text-align:left;">
+        <input id="pinInput" type="password" inputmode="text" placeholder="PIN" autocomplete="off">
         <div class="err" id="pinErr"></div>
         <div class="modal-actions">
           <button class="btn btn-ghost" id="pinCancel">Batal</button>
@@ -686,22 +731,60 @@ function openPinModal(){
       </div>
     </div>`;
   const bg = document.getElementById('modalBg');
+  const nameInput = document.getElementById('nameInput');
   const input = document.getElementById('pinInput');
-  input.focus();
+  nameInput.focus();
   document.getElementById('pinCancel').onclick = ()=> root.innerHTML='';
   bg.addEventListener('click', (e)=>{ if(e.target===bg) root.innerHTML=''; });
   function submit(){
+    const nm = nameInput.value.trim();
+    if(!nm){
+      document.getElementById('pinErr').textContent = 'Nama wajib diisi.';
+      nameInput.focus();
+      return;
+    }
     if(input.value === ADMIN_PIN){
       isAdmin = true;
+      adminName = nm;
       root.innerHTML = '';
+      logAction('Masuk sebagai admin');
+      scheduleSave();
       render();
-      flashToast('Mode admin aktif');
+      flashToast('Mode admin aktif — masuk sebagai ' + nm);
     } else {
       document.getElementById('pinErr').textContent = 'PIN salah, coba lagi.';
     }
   }
   document.getElementById('pinSubmit').onclick = submit;
   input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') submit(); });
+  nameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') input.focus(); });
+}
+
+function openLogModal(){
+  const root = document.getElementById('modalRoot');
+  const entries = (data.log||[]);
+  const rows = entries.length
+    ? entries.map(e=>`
+        <div style="text-align:left; padding:9px 0; border-bottom:1px solid var(--line);">
+          <div style="font-weight:700; color:#fff; font-size:13px;">${escapeHtml(e.name)}</div>
+          <div style="color:var(--muted); font-size:12px;">${escapeHtml(e.action)}</div>
+          <div style="color:var(--muted); font-size:11px; margin-top:2px;">${new Date(e.time).toLocaleString('id-ID')}</div>
+        </div>`).join('')
+    : '<div style="color:var(--muted); font-size:13px; padding:14px 0;">Belum ada aktivitas tercatat.</div>';
+  root.innerHTML = `
+    <div class="modal-bg" id="modalBg">
+      <div class="modal" style="max-width:420px; max-height:80vh; overflow:auto;">
+        <h3>Log Aktivitas</h3>
+        <p>Riwayat perubahan beserta nama panitia yang melakukannya.</p>
+        <div>${rows}</div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button class="btn btn-ghost" id="logClose" style="flex:1;">Tutup</button>
+        </div>
+      </div>
+    </div>`;
+  const bg = document.getElementById('modalBg');
+  document.getElementById('logClose').onclick = ()=> root.innerHTML='';
+  bg.addEventListener('click', (e)=>{ if(e.target===bg) root.innerHTML=''; });
 }
 
 // ---------- polling for live updates (viewers) ----------
