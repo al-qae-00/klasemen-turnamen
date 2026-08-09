@@ -150,14 +150,25 @@
     background:transparent;border:1px solid var(--line);border-radius:6px;color:#fff;
     font:inherit;padding:4px 8px;font-family:'Anton',sans-serif;font-size:17px;
   }
-  .group-head-left{display:flex; flex-direction:column; gap:4px;}
+  .group-head-left{display:flex; flex-direction:column; gap:5px;}
   .group-date{
-    font-family:'Barlow Condensed',sans-serif; font-size:12.5px; font-weight:600;
+    font-family:'Barlow Condensed',sans-serif; font-size:12.5px; font-weight:700;
     letter-spacing:.03em; color:var(--gold); display:flex; align-items:center; gap:6px;
+    background:rgba(242,183,5,0.08); border:1px solid rgba(242,183,5,0.25);
+    padding:4px 10px; border-radius:999px; width:fit-content;
   }
-  .group-date input[type="date"]{
-    background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:6px;
-    color:#fff; font:inherit; padding:3px 8px; color-scheme:dark;
+  .group-date.unset{
+    color:var(--muted); background:rgba(255,255,255,0.04); border-color:var(--line);
+    font-style:italic; font-weight:600;
+  }
+  .group-date-admin{display:flex; align-items:center; gap:6px;}
+  .group-date-admin label{
+    font-family:'Barlow Condensed',sans-serif; font-size:12.5px; font-weight:600;
+    letter-spacing:.03em; color:var(--gold);
+  }
+  .group-date-admin input[type="date"]{
+    background:rgba(255,255,255,0.06); border:1px solid rgba(242,183,5,0.35); border-radius:6px;
+    color:#fff; font:inherit; padding:4px 9px; color-scheme:dark; font-size:12.5px;
   }
   .group-head-right{display:flex; align-items:center; gap:8px;}
 
@@ -175,10 +186,12 @@
   td.col-tim{text-align:left; padding-left:14px; font-weight:700; color:#fff;}
   td.col-tim .rank-badge{
     display:inline-flex; align-items:center; justify-content:center;
-    width:24px; height:24px; border-radius:6px; background:var(--blue-light);
-    color:#fff; font-family:'Anton',sans-serif; font-size:12px; margin-right:9px;
+    width:22px; height:22px; margin-right:9px;
+    font-family:'Anton',sans-serif; font-size:13px; color:var(--muted);
   }
-  tr:nth-child(1) td.col-tim .rank-badge{background:var(--gold); color:#1a1400;}
+  tr:nth-child(1) td.col-tim .rank-badge{
+    background:var(--gold); color:#1a1400; border-radius:6px;
+  }
   td.poin{
     font-family:'Anton',sans-serif; font-size:15px;
     background:var(--blue-light); color:#fff; border-radius:6px;
@@ -495,12 +508,14 @@ function renderGroups(){
     left.appendChild(inp);
 
     const dateRow = document.createElement('div');
-    dateRow.className = 'group-date';
-    dateRow.innerHTML = 'Tanggal : ';
+    dateRow.className = 'group-date-admin';
+    const label = document.createElement('label');
+    label.textContent = 'Tanggal:';
     const dateInp = document.createElement('input');
     dateInp.type = 'date';
     dateInp.value = group.matchDate || '';
     dateInp.oninput = ()=>{ group.matchDate = dateInp.value; scheduleSave(); };
+    dateRow.appendChild(label);
     dateRow.appendChild(dateInp);
     left.appendChild(dateRow);
   } else {
@@ -509,12 +524,15 @@ function renderGroups(){
     name.textContent = group.name;
     left.appendChild(name);
 
+    const dateRow = document.createElement('div');
     if(group.matchDate){
-      const dateRow = document.createElement('div');
       dateRow.className = 'group-date';
-      dateRow.textContent = 'Tanggal : ' + formatTanggal(group.matchDate);
-      left.appendChild(dateRow);
+      dateRow.textContent = 'Tanggal: ' + formatTanggal(group.matchDate);
+    } else {
+      dateRow.className = 'group-date unset';
+      dateRow.textContent = 'Tanggal: belum diatur';
     }
+    left.appendChild(dateRow);
   }
   head.appendChild(left);
 
@@ -581,12 +599,6 @@ function renderGroups(){
         ${isAdmin ? `<td class="rm" data-remove="${t.id}" title="Hapus tim">✕</td>` : ''}
       `;
       tbody.appendChild(tr);
-    });
-
-    // rank-badge gold only for position 1, remove inline stale class from CSS auto rule
-    tbody.querySelectorAll('tr').forEach((tr,idx)=>{
-      const badge = tr.querySelector('.rank-badge');
-      if(idx!==0){ badge.style.background='var(--blue-light)'; badge.style.color='#fff'; }
     });
 
     card.appendChild(table);
