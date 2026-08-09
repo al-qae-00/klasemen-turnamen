@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -150,8 +151,18 @@
     background:transparent;border:1px solid var(--line);border-radius:6px;color:#fff;
     font:inherit;padding:4px 8px;font-family:'Anton',sans-serif;font-size:17px;
   }
+  .group-head-left{display:flex; flex-direction:column; gap:4px;}
+  .group-date{
+    font-family:'Barlow Condensed',sans-serif; font-size:12.5px; font-weight:600;
+    letter-spacing:.03em; color:var(--gold); display:flex; align-items:center; gap:6px;
+  }
+  .group-date input[type="date"]{
+    background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:6px;
+    color:#fff; font:inherit; padding:3px 8px; color-scheme:dark;
+  }
+  .group-head-right{display:flex; align-items:center; gap:8px;}
 
-  table{width:100%; border-collapse:collapse; font-size:13px;}
+  table{width:100%; border-collapse:collapse; font-size:13px; user-select:none;}
   thead th{
     font-family:'Barlow Condensed',sans-serif; text-transform:uppercase;
     letter-spacing:.05em; font-weight:600; font-size:11.5px;
@@ -310,7 +321,7 @@ function defaultData(){
     updatedAt: Date.now(),
     groups: [
       {
-        id: uid(), name: 'Grup A',
+        id: uid(), name: 'Grup A', matchDate: '',
         teams: [
           { id: uid(), name: 'Sukanagara', main:2, menang:1, seri:1, kalah:0, gm:2, gk:0 },
           { id: uid(), name: 'Sentul', main:2, menang:1, seri:0, kalah:1, gm:2, gk:2 },
@@ -319,7 +330,7 @@ function defaultData(){
         ]
       },
       {
-        id: uid(), name: 'Grup B',
+        id: uid(), name: 'Grup B', matchDate: '',
         teams: [
           { id: uid(), name: 'Sukajadi', main:1, menang:1, seri:0, kalah:0, gm:2, gk:0 },
           { id: uid(), name: 'Sukasari', main:1, menang:0, seri:0, kalah:1, gm:0, gk:2 },
@@ -382,6 +393,14 @@ function timeAgo(ts){
   return new Date(ts).toLocaleDateString('id-ID',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 }
 
+function formatTanggal(iso){
+  if(!iso) return '';
+  try{
+    const d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+  }catch(e){ return ''; }
+}
+
 function computeRows(teams){
   const withCalc = teams.map(t=>{
     const sg = (t.gm||0) - (t.gk||0);
@@ -394,7 +413,10 @@ function computeRows(teams){
 
 // ---------- render ----------
 function render(){
-  document.getElementById('titleDisplay').textContent = data.title;
+  const titleEl = document.getElementById('titleDisplay');
+  titleEl.textContent = data.title;
+  titleEl.style.cursor = isAdmin ? 'pointer' : 'default';
+  titleEl.title = isAdmin ? 'Klik untuk edit judul' : '';
   document.getElementById('titleEdit').value = data.title;
   document.getElementById('updatedText').textContent = 'Diperbarui ' + timeAgo(data.updatedAt);
 
@@ -437,7 +459,7 @@ function renderTabs(){
     add.textContent = '+';
     add.title = 'Tambah grup';
     add.onclick = ()=>{
-      const g = { id: uid(), name: 'Grup ' + String.fromCharCode(65 + data.groups.length), teams: [] };
+      const g = { id: uid(), name: 'Grup ' + String.fromCharCode(65 + data.groups.length), matchDate: '', teams: [] };
       data.groups.push(g);
       activeGroupId = g.id;
       scheduleSave();
@@ -462,13 +484,44 @@ function renderGroups(){
   // header
   const head = document.createElement('div');
   head.className = 'group-head';
+
+  const left = document.createElement('div');
+  left.className = 'group-head-left';
+
   if(isAdmin){
     const inp = document.createElement('input');
     inp.className = 'group-name-edit';
     inp.value = group.name;
     inp.oninput = ()=>{ group.name = inp.value; scheduleSave(); renderTabs(); };
-    head.appendChild(inp);
+    left.appendChild(inp);
 
+    const dateRow = document.createElement('div');
+    dateRow.className = 'group-date';
+    dateRow.innerHTML = 'Tanggal pertandingan: ';
+    const dateInp = document.createElement('input');
+    dateInp.type = 'date';
+    dateInp.value = group.matchDate || '';
+    dateInp.oninput = ()=>{ group.matchDate = dateInp.value; scheduleSave(); };
+    dateRow.appendChild(dateInp);
+    left.appendChild(dateRow);
+  } else {
+    const name = document.createElement('div');
+    name.className = 'group-name';
+    name.textContent = group.name;
+    left.appendChild(name);
+
+    if(group.matchDate){
+      const dateRow = document.createElement('div');
+      dateRow.className = 'group-date';
+      dateRow.textContent = 'Tanggal pertandingan: ' + formatTanggal(group.matchDate);
+      left.appendChild(dateRow);
+    }
+  }
+  head.appendChild(left);
+
+  if(isAdmin){
+    const right = document.createElement('div');
+    right.className = 'group-head-right';
     const delGroup = document.createElement('button');
     delGroup.className = 'btn btn-red btn-sm';
     delGroup.textContent = 'Hapus Grup';
@@ -480,13 +533,10 @@ function renderGroups(){
         render();
       }
     };
-    head.appendChild(delGroup);
-  } else {
-    const name = document.createElement('div');
-    name.className = 'group-name';
-    name.textContent = group.name;
-    head.appendChild(name);
+    right.appendChild(delGroup);
+    head.appendChild(right);
   }
+
   card.appendChild(head);
 
   // table
